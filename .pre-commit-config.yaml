@@ -7,3 +7,12 @@ repos:
         args:
           - --license-filepath=LICENSE_HEADER.txt
           - --comment-style=#
+  - repo: local
+    hooks:
+      - id: pdm-verify
+        name: pdm run verify
+        entry: pdm run verify
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true

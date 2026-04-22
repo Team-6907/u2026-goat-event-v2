@@ -18,6 +18,7 @@ distribution = false
 format-check = "black --check ."
 typecheck = "basedpyright"
 test = "python -m unittest discover -s test -p \"*.py\" -v"
+verify = {composite = ["typecheck", "test"]}
 
 [dependency-groups]
 typecheck = [
