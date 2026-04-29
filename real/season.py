@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from typing import Optional, Type, cast
 from datetime import datetime
 
 from data.frc_json import (
@@ -13,6 +14,7 @@ from data.frc_json import (
 from data.season_requests import request_season_data, SeasonRequestType
 from real.event import Event
 from real.team import SeasonTeam
+from ruleset.cmpqual.protocol import CMPQualRule
 from ruleset.tournament.protocol import TournamentType
 from utils.data_util import is_json_object
 
@@ -22,6 +24,9 @@ class Season:
         self.season: int = season
         self.teams: dict[int, SeasonTeam] = {}
         self.events: dict[int, list[Event]] = {}
+
+        self.cmpQualRule: Optional[Type[CMPQualRule]] = None
+
         self._request_team_listing()
         self._request_event_listing()
 
@@ -60,7 +65,9 @@ class Season:
                 continue
 
             try:
+                currentSeason = cast(Season, self)
                 event = Event(self.season, eventCode)
+                event.season_obj = currentSeason
             except FRCHTTPError as exc:
                 if "HTTP 500" not in str(exc):
                     raise

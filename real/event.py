@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from typing import Type
 from typing import Optional, cast
 from datetime import datetime
 
@@ -15,9 +16,11 @@ from real.alliance import Alliance, AllianceColor, AllianceRole
 from real.match import PlayoffRound, Match
 from real.team import Team
 from utils.data_util import is_json_object
+from utils.rule_util import default_tournament_rule_class
 
 if TYPE_CHECKING:
     from ruleset.tournament.protocol import TournamentRule
+    from real.season import Season
 
 
 class Award:
@@ -60,6 +63,8 @@ class Event:
         self.qualsMatches: dict[int, Match] = {}
         self.playoffMatches: dict[int, Match] = {}
         self.awards: dict[str, list[Award]] = {}
+
+        self.season_obj: Optional[Season] = None
 
         self.tournamentRule: Optional[TournamentRule] = None
         self.cmpQualRule: Optional[CMPQualRule] = None
@@ -470,7 +475,8 @@ class Event:
 
     def _request_qualification_score_details(self) -> None:
         self._assign_score_details(
-            TournamentLevel.QUALIFICATION, EventRequestType.QUALIFICATION_SCORE_DETAILS
+            TournamentLevel.QUALIFICATION,
+            EventRequestType.QUALIFICATION_SCORE_DETAILS,
         )
 
     def _request_playoff_score_details(self) -> None:
@@ -518,26 +524,33 @@ class Event:
 
     # Tournament
 
-    def add_tournament_rule(self, tournamentRule: TournamentRule):
-        self.tournamentRule = tournamentRule
+    def get_tournament_rule(self) -> TournamentRule:
+        if self.tournamentRule is not None:
+            return self.tournamentRule
+        raise ValueError("Tournament rule not initialized for this event")
 
-    def with_tournament_rule(self, tournamentRule: TournamentRule) -> "Event":
-        self.add_tournament_rule(tournamentRule)
+    def add_tournament_rule(self, tournamentRuleClass: Type[TournamentRule]):
+        self.tournamentRule = tournamentRuleClass(self)
+
+    def with_tournament_rule(
+        self, tournamentRuleClass: Type[TournamentRule]
+    ) -> "Event":
+        self.add_tournament_rule(tournamentRuleClass)
         return self
+
+    def with_default_tournament_rule(self) -> "Event":
+        defaultTournamentRuleClass: Type[TournamentRule] = (
+            default_tournament_rule_class(self)
+        )
+        return self.with_tournament_rule(defaultTournamentRuleClass)
 
     def get_playoff_from_round(
         self, round: PlayoffRound, part: int, match: int
     ) -> Match:
-        if self.tournamentRule is not None:
-            return self.tournamentRule.get_playoff_from_round(round, part, match)
-        raise ValueError("Tournament rule not initialized for this event")
+        return self.get_tournament_rule().get_playoff_from_round(round, part, match)
 
     def get_round_part_winner(self, round: PlayoffRound, part: int) -> Alliance:
-        if self.tournamentRule is not None:
-            return self.tournamentRule.get_round_part_winner(round, part)
-        raise ValueError("Tournament rule not initialized for this event")
+        return self.get_tournament_rule().get_round_part_winner(round, part)
 
     def get_round_part_finalist(self, round: PlayoffRound, part: int) -> Alliance:
-        if self.tournamentRule is not None:
-            return self.tournamentRule.get_round_part_finalist(round, part)
-        raise ValueError("Tournament rule not initialized for this event")
+        return self.get_tournament_rule().get_round_part_finalist(round, part)
