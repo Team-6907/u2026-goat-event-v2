@@ -78,6 +78,8 @@ class Event:
         self._request_playoff_score_details()
         self._request_event_awards()
 
+        self.add_default_tournament_rule()
+
     def __str__(self):
         return f"<Event {self.season} {self.eventCode}>"
 
@@ -538,11 +540,15 @@ class Event:
         self.add_tournament_rule(tournamentRuleClass)
         return self
 
-    def with_default_tournament_rule(self) -> "Event":
+    def add_default_tournament_rule(self):
         defaultTournamentRuleClass: Type[TournamentRule] = (
             default_tournament_rule_class(self)
         )
-        return self.with_tournament_rule(defaultTournamentRuleClass)
+        self.add_tournament_rule(defaultTournamentRuleClass)
+
+    def with_default_tournament_rule(self) -> "Event":
+        self.add_default_tournament_rule()
+        return self
 
     def get_playoff_from_round(
         self, round: PlayoffRound, part: int, match: int

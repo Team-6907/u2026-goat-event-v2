@@ -17,7 +17,9 @@ TEST_CACHE_ROOT = Path(__file__).resolve().parent / "test_cache"
 
 
 class TestSimpleTournamentRealData(unittest.TestCase):
-    def test_get_round_part_outcomes_match_real_2019_galileo_results(self) -> None:
+    def test_get_round_part_outcomes_match_real_2019_galileo_results(
+        self,
+    ) -> None:
         with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
             event = Event(season=2019, eventCode="GALILEO")
             event.with_tournament_rule(SimpleTournament)
@@ -52,7 +54,9 @@ class TestSimpleTournamentRealData(unittest.TestCase):
                         f"Expected GALILEO 2019 {round_value.name.lower()} part {part} finalist to be Alliance {finalist}",
                     )
 
-    def test_get_round_part_outcomes_match_real_2022_galileo_results(self) -> None:
+    def test_get_round_part_outcomes_match_real_2022_galileo_results(
+        self,
+    ) -> None:
         with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
             event = Event(season=2022, eventCode="GALILEO")
             event.with_tournament_rule(SimpleTournament)
@@ -151,7 +155,6 @@ class TestDefaultTournamentRule(unittest.TestCase):
             for season, (eventCode, expectedRuleClass) in cases.items():
                 with self.subTest(season=season, eventCode=eventCode):
                     event = Event(season=season, eventCode=eventCode)
-                    event.with_default_tournament_rule()
 
                     self.assertIsInstance(
                         event.tournamentRule,
