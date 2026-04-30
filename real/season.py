@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from typing import Optional, Type, cast
-from datetime import datetime
 
 from data.frc_json import (
     FRCHTTPError,
@@ -15,7 +14,6 @@ from data.season_requests import request_season_data, SeasonRequestType
 from real.event import Event
 from real.team import SeasonTeam
 from ruleset.cmpqual.protocol import CMPQualRule
-from ruleset.tournament.protocol import TournamentType
 from utils.data_util import is_json_object
 
 
@@ -76,37 +74,6 @@ class Season:
             except ValueError:
                 bypass_event_cache_file(self.season, eventCode)
                 continue
-
-            eventType = typedEventData.get("type")
-            if isinstance(eventType, int):
-                try:
-                    event.type = TournamentType(eventType)
-                except ValueError:
-                    event.type = TournamentType.NONE
-
-            country = typedEventData.get("country")
-            if isinstance(country, str) and country.strip():
-                event.country = country
-
-            districtCode = typedEventData.get("districtCode")
-            if isinstance(districtCode, str) and districtCode.strip():
-                event.districtCode = districtCode
-
-            divisionCode = typedEventData.get("divisionCode")
-            if isinstance(divisionCode, str) and divisionCode.strip():
-                event.divisionCode = divisionCode
-
-            name = typedEventData.get("name")
-            if isinstance(name, str) and name.strip():
-                event.name = name
-
-            dateStart = typedEventData.get("dateStart")
-            if isinstance(dateStart, str) and dateStart.strip():
-                event.dateStart = datetime.fromisoformat(dateStart)
-
-            dateEnd = typedEventData.get("dateEnd")
-            if isinstance(dateEnd, str) and dateEnd.strip():
-                event.dateEnd = datetime.fromisoformat(dateEnd)
 
             self.events.setdefault(weekNumber, []).append(event)
 

@@ -1,8 +1,10 @@
 # Copyright (c) 2026 FRC Team 6907, The G.O.A.T
 # Licensed under the MIT License.
 
-from typing import cast
+from typing import Any, cast
 from data.frc_json import EventRequestType, request_frc_json, request_paginated_frc_json
+from data.season_requests import request_season_data, SeasonRequestType
+from utils.data_util import is_json_object
 
 FRC_API_BASE_URL = "https://frc-api.firstinspires.org/v3.0"
 
@@ -65,3 +67,21 @@ def request_event_data(
             f"Invalid event data format for '{payloadKey}': expected a list"
         )
     return cast(list[object], data)
+
+
+def request_event_metadata(season: int, eventCode: str) -> dict[str, Any]:
+    normalizedEventCode = eventCode.strip()
+    if not normalizedEventCode:
+        raise ValueError("eventCode cannot be empty")
+
+    eventData = request_season_data(SeasonRequestType.EVENT_LISTING, season)
+    for rawEventData in eventData:
+        if not is_json_object(rawEventData):
+            continue
+        typedEventData = rawEventData
+        if typedEventData.get("code") == normalizedEventCode:
+            return typedEventData
+
+    raise ValueError(
+        f"Event metadata not found for season {season} event {normalizedEventCode}"
+    )

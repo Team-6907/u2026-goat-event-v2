@@ -3,7 +3,8 @@
   "include": [
     "real",
     "ruleset",
-    "data"
+    "data",
+    "utils"
   ],
   "exclude": [
     "**/__pycache__",

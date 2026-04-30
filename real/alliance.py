@@ -92,6 +92,8 @@ class Alliance(AllianceBase):
         currentAlliance = cast(Alliance, self)
         result: list[Match] = []
         for match in currentAlliance.playoffMatches:
+            if match.winningAlliance is None:
+                continue
             if match.get_result_by_alliance(currentAlliance) == MatchResult.WIN:
                 result.append(match)
         return result

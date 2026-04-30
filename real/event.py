@@ -8,14 +8,16 @@ from typing import Type
 from typing import Optional, cast
 from datetime import datetime
 
+from data.frc_json import FRCRequestError
 from ruleset.cmpqual.protocol import CMPQualRule
 from ruleset.tournament.protocol import TournamentType, TournamentLevel
-from data.event_requests import request_event_data
+from data.event_requests import request_event_data, request_event_metadata
 from data.frc_json import EventRequestType
 from real.alliance import Alliance, AllianceColor, AllianceRole
 from real.match import PlayoffRound, Match
 from real.team import Team
 from utils.data_util import is_json_object
+from utils.rule_util import default_cmp_qual_rule_class
 from utils.rule_util import default_tournament_rule_class
 
 if TYPE_CHECKING:
@@ -79,12 +81,71 @@ class Event:
         self._request_event_awards()
 
         self.add_default_tournament_rule()
+        self.add_default_cmp_qual_rule()
+        self._request_event_metadata_from_listing()
 
     def __str__(self):
         return f"<Event {self.season} {self.eventCode}>"
 
     def __repr__(self):
         return self.__str__()
+
+    def _request_event_metadata_from_listing(self) -> None:
+        try:
+            typedEventData = request_event_metadata(self.season, self.eventCode)
+        except FRCRequestError:
+            return
+        except ValueError:
+            return
+
+        eventType = typedEventData.get("type")
+        if isinstance(eventType, int):
+            try:
+                self.type = TournamentType(eventType)
+            except ValueError:
+                self.type = TournamentType.NONE
+        elif isinstance(eventType, str):
+            tournamentTypeByName = {
+                "Regional": TournamentType.REGIONAL,
+                "DistrictEvent": TournamentType.DISTRICT_EVENT,
+                "DistrictChampionship": TournamentType.DISTRICT_CHAMPIONSHIP,
+                "DistrictChampionshipWithLevels": (
+                    TournamentType.DISTRICT_CHAMPIONSHIP_WITH_LEVELS
+                ),
+                "DistrictChampionshipDivision": (
+                    TournamentType.DISTRICT_CHAMPIONSHIP_DIVISION
+                ),
+                "ChampionshipSubdivision": (TournamentType.CHAMPIONSHIP_SUBDIVISION),
+                "ChampionshipDivision": TournamentType.CHAMPIONSHIP_DIVISION,
+                "Championship": TournamentType.CHAMPIONSHIP,
+                "OffSeason": TournamentType.OFF_SEASON,
+                "OffSeasonWithAzureSync": (TournamentType.OFF_SEASON_WITH_AZURE_SYNC),
+            }
+            self.type = tournamentTypeByName.get(eventType, TournamentType.NONE)
+
+        country = typedEventData.get("country")
+        if isinstance(country, str) and country.strip():
+            self.country = country
+
+        districtCode = typedEventData.get("districtCode")
+        if isinstance(districtCode, str) and districtCode.strip():
+            self.districtCode = districtCode
+
+        divisionCode = typedEventData.get("divisionCode")
+        if isinstance(divisionCode, str) and divisionCode.strip():
+            self.divisionCode = divisionCode
+
+        name = typedEventData.get("name")
+        if isinstance(name, str) and name.strip():
+            self.name = name
+
+        dateStart = typedEventData.get("dateStart")
+        if isinstance(dateStart, str) and dateStart.strip():
+            self.dateStart = datetime.fromisoformat(dateStart)
+
+        dateEnd = typedEventData.get("dateEnd")
+        if isinstance(dateEnd, str) and dateEnd.strip():
+            self.dateEnd = datetime.fromisoformat(dateEnd)
 
     # Event data request
 
@@ -428,7 +489,8 @@ class Event:
                 team = self.teams.get(teamNumber)
                 if team is not None:
                     award.team = team
-                    team.awards.append(awardName)
+                    if award.person is None:
+                        team.awards.append(awardName)
 
             self.awards.setdefault(awardName, []).append(award)
 
@@ -560,3 +622,46 @@ class Event:
 
     def get_round_part_finalist(self, round: PlayoffRound, part: int) -> Alliance:
         return self.get_tournament_rule().get_round_part_finalist(round, part)
+
+    # CMP Qualification
+
+    def get_cmp_qual_rule(self) -> CMPQualRule:
+        if self.cmpQualRule is not None:
+            return self.cmpQualRule
+        raise ValueError("CMP qualification rule not initialized for this event")
+
+    def add_cmp_qual_rule(self, cmpQualRuleClass: Type[CMPQualRule]):
+        self.cmpQualRule = cmpQualRuleClass(self)
+
+    def with_cmp_qual_rule(self, cmpQualRuleClass: Type[CMPQualRule]) -> "Event":
+        self.add_cmp_qual_rule(cmpQualRuleClass)
+        return self
+
+    def add_default_cmp_qual_rule(self):
+        defaultCMPQualRuleClass: Type[CMPQualRule] = default_cmp_qual_rule_class(self)
+        self.add_cmp_qual_rule(defaultCMPQualRuleClass)
+
+    def with_default_cmp_qual_rule(self) -> "Event":
+        self.add_default_cmp_qual_rule()
+        return self
+
+    def get_qualification_points(self, team: Team) -> int:
+        return self.get_cmp_qual_rule().get_qualification_points(team)
+
+    def get_alliance_selection_points(self, team: Team) -> int:
+        return self.get_cmp_qual_rule().get_alliance_selection_points(team)
+
+    def get_playoff_round_points(self, team: Team) -> int:
+        return self.get_cmp_qual_rule().get_playoff_round_points(team)
+
+    def get_team_age_points(self, team: Team) -> int:
+        return self.get_cmp_qual_rule().get_team_age_points(team)
+
+    def get_award_points(self, team: Team) -> int:
+        return self.get_cmp_qual_rule().get_award_points(team)
+
+    def get_total_points(self, team: Team) -> int:
+        return self.get_cmp_qual_rule().get_total_points(team)
+
+    def get_direct_qualification_succession(self) -> list[Team]:
+        return self.get_cmp_qual_rule().get_direct_qualification_succession()

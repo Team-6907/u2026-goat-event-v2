@@ -3,12 +3,36 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Union
+from typing import Protocol
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from real.event import Event
     from real.team import Team
+
+
+class EmptyEventPoints:
+    event: Event
+
+    def __init__(self, event: Event):
+        self.event = event
+
+    # CMP Eligibility Points Calculation
+
+    def get_qualification_points(self, team: Team) -> int:
+        return 0
+
+    def get_alliance_selection_points(self, team: Team) -> int:
+        return 0
+
+    def get_playoff_round_points(self, team: Team) -> int:
+        return 0
+
+    def get_team_age_points(self, team: Team) -> int:
+        return 0
+
+    def get_award_points(self, team: Team) -> int:
+        return 0
 
 
 class CMPQualRule(Protocol):
@@ -28,13 +52,8 @@ class CMPQualRule(Protocol):
 
     def get_award_points(self, team: Team) -> int: ...
 
-    # CMP Direct Qualification
+    def get_total_points(self, team: Team) -> int: ...
 
-    def get_direct_qualification_info(self, team: Team) -> dict[str, Union[str, bool]]:
-        """Returns a dict with `{"qualified": bool, "reason": str}`,
-        where `qualified` indicates whether the team is directly qualified for CMP,
-        and `reason` is the reason for the qualification or disqualification.
-        """
-        ...
+    # CMP Qualification Succession
 
-    def get_direct_qualified_teams(self) -> list[Team]: ...
+    def get_direct_qualification_succession(self) -> list[Team]: ...
