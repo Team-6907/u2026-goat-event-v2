@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import unittest
 from typing import Any, cast
@@ -146,13 +146,13 @@ class TestRealEventRequests(unittest.TestCase):
         match = team.qualsMatches[0]
         self.assertEqual(
             match.actualStartTime,
-            datetime.fromisoformat("2024-03-15T09:24:39.95"),
-            "Expected actualStartTime to match qualification match 2 JSON",
+            datetime.fromisoformat("2024-03-15T16:24:39.95+00:00"),
+            "Expected actualStartTime to be normalized from AZVA local time to UTC",
         )
         self.assertEqual(
             match.postResultTime,
-            datetime.fromisoformat("2024-03-15T09:28:23.23"),
-            "Expected postResultTime to match qualification match 2 JSON",
+            datetime.fromisoformat("2024-03-15T16:28:23.23+00:00"),
+            "Expected postResultTime to be normalized from AZVA local time to UTC",
         )
 
     def test_request_playoff_matches_initializes_match_and_team_links(self) -> None:
@@ -223,13 +223,13 @@ class TestRealEventRequests(unittest.TestCase):
         match = event.get_match_from_number(TournamentLevel.PLAYOFF, 9)
         self.assertEqual(
             match.actualStartTime,
-            datetime.fromisoformat("2024-03-16T15:33:07.313"),
-            "Expected actualStartTime to match playoff match 9 JSON",
+            datetime.fromisoformat("2024-03-16T22:33:07.313+00:00"),
+            "Expected actualStartTime to be normalized from AZVA local time to UTC",
         )
         self.assertEqual(
             match.postResultTime,
-            datetime.fromisoformat("2024-03-16T15:36:55.023"),
-            "Expected postResultTime to match playoff match 9 JSON",
+            datetime.fromisoformat("2024-03-16T22:36:55.023+00:00"),
+            "Expected postResultTime to be normalized from AZVA local time to UTC",
         )
         self.assertEqual(
             match.redScore,
@@ -758,6 +758,25 @@ class TestRealEventRequests(unittest.TestCase):
                     self.assertGreater(
                         len(dataList), 0, "Expected non-empty cached data list"
                     )
+
+    def test_event_metadata_initializes_utc_dates_from_event_timezone(self) -> None:
+        event = Event(season=2024, eventCode="AZVA")
+
+        self.assertEqual(
+            event.timezone,
+            "Pacific Standard Time",
+            "Expected event timezone to be initialized from SeasonData listing",
+        )
+        self.assertEqual(
+            event.dateStart,
+            datetime(2024, 3, 13, 7, 0, 0, tzinfo=timezone.utc),
+            "Expected AZVA dateStart to be normalized from local midnight to UTC",
+        )
+        self.assertEqual(
+            event.dateEnd,
+            datetime(2024, 3, 17, 6, 59, 59, tzinfo=timezone.utc),
+            "Expected AZVA dateEnd to be normalized from local end-of-day to UTC",
+        )
 
 
 class TestRealSeasonRequests(unittest.TestCase):

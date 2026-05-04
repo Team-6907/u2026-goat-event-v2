@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Type
 from typing import Optional, cast
-from datetime import datetime
+from datetime import datetime, timezone
 
 from data.frc_json import FRCRequestError
 from ruleset.cmpqual.protocol import CMPQualRule
@@ -19,6 +19,7 @@ from real.team import Team
 from utils.data_util import is_json_object
 from utils.rule_util import default_cmp_qual_rule_class
 from utils.rule_util import default_tournament_rule_class
+from utils.time_util import normalize_event_datetime_to_utc
 
 if TYPE_CHECKING:
     from ruleset.tournament.protocol import TournamentRule
@@ -56,8 +57,9 @@ class Event:
         self.districtCode: Optional[str] = None
         self.divisionCode: Optional[str] = None
         self.name: str = ""
-        self.dateStart: datetime = datetime(1970, 1, 1)
-        self.dateEnd: datetime = datetime(1970, 1, 1)
+        self.timezone: Optional[str] = None
+        self.dateStart: datetime = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        self.dateEnd: datetime = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
         self.rankings: dict[int, Team] = {}
         self.alliances: dict[int, Alliance] = {}
@@ -71,6 +73,7 @@ class Event:
         self.tournamentRule: Optional[TournamentRule] = None
         self.cmpQualRule: Optional[CMPQualRule] = None
 
+        self._request_event_metadata_from_listing()
         self._request_teams()
         self._request_rankings()
         self._request_alliances()
@@ -82,7 +85,6 @@ class Event:
 
         self.add_default_tournament_rule()
         self.add_default_cmp_qual_rule()
-        self._request_event_metadata_from_listing()
 
     def __str__(self):
         return f"<Event {self.season} {self.eventCode}>"
@@ -139,13 +141,26 @@ class Event:
         if isinstance(name, str) and name.strip():
             self.name = name
 
+        timezoneName = typedEventData.get("timezone")
+        if isinstance(timezoneName, str) and timezoneName.strip():
+            self.timezone = timezoneName
+
         dateStart = typedEventData.get("dateStart")
         if isinstance(dateStart, str) and dateStart.strip():
-            self.dateStart = datetime.fromisoformat(dateStart)
+            if self.timezone is not None:
+                self.dateStart = self._normalize_datetime_to_utc(dateStart)
+            else:
+                self.dateStart = datetime.fromisoformat(dateStart)
 
         dateEnd = typedEventData.get("dateEnd")
         if isinstance(dateEnd, str) and dateEnd.strip():
-            self.dateEnd = datetime.fromisoformat(dateEnd)
+            if self.timezone is not None:
+                self.dateEnd = self._normalize_datetime_to_utc(dateEnd)
+            else:
+                self.dateEnd = datetime.fromisoformat(dateEnd)
+
+    def _normalize_datetime_to_utc(self, dateTimeString: str) -> datetime:
+        return normalize_event_datetime_to_utc(dateTimeString, self.timezone)
 
     # Event data request
 
@@ -291,11 +306,21 @@ class Event:
 
             actualStartTime = typedMatchData.get("actualStartTime")
             if isinstance(actualStartTime, str) and actualStartTime.strip():
-                match.actualStartTime = datetime.fromisoformat(actualStartTime)
+                if self.timezone is not None:
+                    match.actualStartTime = self._normalize_datetime_to_utc(
+                        actualStartTime
+                    )
+                else:
+                    match.actualStartTime = datetime.fromisoformat(actualStartTime)
 
             postResultTime = typedMatchData.get("postResultTime")
             if isinstance(postResultTime, str) and postResultTime.strip():
-                match.postResultTime = datetime.fromisoformat(postResultTime)
+                if self.timezone is not None:
+                    match.postResultTime = self._normalize_datetime_to_utc(
+                        postResultTime
+                    )
+                else:
+                    match.postResultTime = datetime.fromisoformat(postResultTime)
 
             scoreRedFinal = typedMatchData.get("scoreRedFinal")
             if isinstance(scoreRedFinal, (int, float)):
@@ -372,11 +397,21 @@ class Event:
 
             actualStartTime = typedMatchData.get("actualStartTime")
             if isinstance(actualStartTime, str) and actualStartTime.strip():
-                match.actualStartTime = datetime.fromisoformat(actualStartTime)
+                if self.timezone is not None:
+                    match.actualStartTime = self._normalize_datetime_to_utc(
+                        actualStartTime
+                    )
+                else:
+                    match.actualStartTime = datetime.fromisoformat(actualStartTime)
 
             postResultTime = typedMatchData.get("postResultTime")
             if isinstance(postResultTime, str) and postResultTime.strip():
-                match.postResultTime = datetime.fromisoformat(postResultTime)
+                if self.timezone is not None:
+                    match.postResultTime = self._normalize_datetime_to_utc(
+                        postResultTime
+                    )
+                else:
+                    match.postResultTime = datetime.fromisoformat(postResultTime)
 
             scoreRedFinal = typedMatchData.get("scoreRedFinal")
             if isinstance(scoreRedFinal, (int, float)):
