@@ -30,9 +30,7 @@ class Season:
         self._request_event_listing()
 
     def _request_team_listing(self) -> None:
-        teamsData = request_season_data(
-            SeasonRequestType.TEAM_LISTING, self.season
-        )
+        teamsData = request_season_data(SeasonRequestType.TEAM_LISTING, self.season)
 
         for rawTeamData in teamsData:
             if not is_json_object(rawTeamData):
@@ -82,9 +80,7 @@ class Season:
                     )
                     continue
                 except ValueError as exc:
-                    bypass_event_cache_file(
-                        self.season, eventCode, reason=str(exc)
-                    )
+                    bypass_event_cache_file(self.season, eventCode, reason=str(exc))
                     continue
 
                 self.events.setdefault(weekNumber, []).append(event)

@@ -130,9 +130,7 @@ def _get_cached_event_listing(season: int) -> list[dict[str, Any]]:
     return typedEventList
 
 
-def _get_event_listing_metadata(
-    season: int, eventCode: str
-) -> dict[str, Any] | None:
+def _get_event_listing_metadata(season: int, eventCode: str) -> dict[str, Any] | None:
     normalizedEventCode = eventCode.strip()
     if not normalizedEventCode:
         return None
@@ -158,9 +156,7 @@ def _get_event_end_utc(season: int, eventCode: str) -> datetime | None:
     return normalize_event_datetime_to_utc(dateEnd, eventTimezone)
 
 
-def _get_event_cache_refresh_deadline(
-    season: int, eventCode: str
-) -> datetime | None:
+def _get_event_cache_refresh_deadline(season: int, eventCode: str) -> datetime | None:
     eventEndUtc = _get_event_end_utc(season, eventCode)
     if eventEndUtc is None:
         return None
@@ -174,9 +170,7 @@ def _should_refresh_event_payload(
     if refreshDeadlineUtc is None:
         return False
 
-    cachedFetchedAtUtc = _parse_iso_datetime(
-        cachedValue.get(CACHE_FETCHED_AT_FIELD)
-    )
+    cachedFetchedAtUtc = _parse_iso_datetime(cachedValue.get(CACHE_FETCHED_AT_FIELD))
     if cachedFetchedAtUtc is None:
         return False
 
@@ -237,9 +231,7 @@ def _read_bypass_entries(season: int) -> list[dict[str, str]]:
 
 
 def _write_bypass_entries(season: int, entries: list[dict[str, str]]) -> None:
-    _write_cache_file(
-        _bypass_file_path(season=season), {"bypassEvents": entries}
-    )
+    _write_cache_file(_bypass_file_path(season=season), {"bypassEvents": entries})
 
 
 def bypass_event_cache_file(
@@ -547,9 +539,7 @@ def _request_paginated_json(
     if isinstance(teamCountPage, int):
         mergedPayload["teamCountPage"] = len(mergedData)
 
-    mergedPayload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(
-        _current_utc_time()
-    )
+    mergedPayload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(_current_utc_time())
     cacheData[key] = mergedPayload
     _write_cache_file(cachePath, cacheData)
     return mergedPayload

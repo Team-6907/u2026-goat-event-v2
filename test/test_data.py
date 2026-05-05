@@ -31,7 +31,9 @@ class TestData(unittest.TestCase):
     def test_request_frc_json_reads_from_test_cache_without_network(self) -> None:
         originalContent = TEST_EVENT_CACHE_2024_AZVA.read_text(encoding="utf-8")
         try:
-            with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+            with patch.dict(
+                os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}
+            ):
                 with patch(
                     "data.frc_json.fetch_frc_json",
                     side_effect=RuntimeError("network disabled"),
@@ -96,7 +98,9 @@ class TestData(unittest.TestCase):
     def test_request_frc_json_writes_cache_fetch_time_on_refetch(self) -> None:
         originalContent = TEST_EVENT_CACHE_2024_AZVA.read_text(encoding="utf-8")
         try:
-            with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+            with patch.dict(
+                os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}
+            ):
                 fakePayload = {"hello": "world"}
                 fakeNow = datetime(2026, 5, 4, 12, 0, tzinfo=timezone.utc)
 
@@ -122,10 +126,14 @@ class TestData(unittest.TestCase):
         )
         self.assertEqual(mockFetch.call_count, 1, "Expected payload to be fetched once")
 
-    def test_request_frc_json_refreshes_event_cache_within_24h_after_event_end(self) -> None:
+    def test_request_frc_json_refreshes_event_cache_within_24h_after_event_end(
+        self,
+    ) -> None:
         originalContent = TEST_EVENT_CACHE_2024_AZVA.read_text(encoding="utf-8")
         try:
-            with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+            with patch.dict(
+                os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}
+            ):
                 fakeNow = datetime(2024, 3, 17, 6, 0, tzinfo=timezone.utc)
                 refreshedPayload = {
                     "teamCountTotal": 999,
@@ -165,7 +173,9 @@ class TestData(unittest.TestCase):
             "Expected cache refresh to hit the network once during refresh window",
         )
 
-    def test_bypass_event_cache_file_stores_metadata_and_expires_after_24h(self) -> None:
+    def test_bypass_event_cache_file_stores_metadata_and_expires_after_24h(
+        self,
+    ) -> None:
         with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
             bypassFile = TEST_CACHE_ROOT / "2024" / "BypassEvents.json"
             eventCacheFile = TEST_EVENT_CACHE_2024_AZVA
@@ -179,7 +189,9 @@ class TestData(unittest.TestCase):
 
                 bypassTime = datetime(2024, 3, 17, 5, 0, tzinfo=timezone.utc)
                 with patch("data.frc_json._current_utc_time", return_value=bypassTime):
-                    bypass_event_cache_file(2024, "AZVA", reason="incomplete event data")
+                    bypass_event_cache_file(
+                        2024, "AZVA", reason="incomplete event data"
+                    )
 
                 bypassPayload = json.loads(bypassFile.read_text(encoding="utf-8"))
                 bypassEntries: Any = bypassPayload.get("bypassEvents")
@@ -233,7 +245,9 @@ class TestData(unittest.TestCase):
                 else:
                     bypassFile.write_text(originalContent, encoding="utf-8")
 
-    def test_bypassed_events_for_season_skips_only_service_side_bypass_entries(self) -> None:
+    def test_bypassed_events_for_season_skips_only_service_side_bypass_entries(
+        self,
+    ) -> None:
         with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
             bypassFile = TEST_CACHE_ROOT / "2024" / "BypassEvents.json"
             originalContent = (
@@ -258,7 +272,9 @@ class TestData(unittest.TestCase):
                     ]
                 }
                 bypassFile.write_text(
-                    json.dumps(bypassPayload, ensure_ascii=False, indent=2, sort_keys=True),
+                    json.dumps(
+                        bypassPayload, ensure_ascii=False, indent=2, sort_keys=True
+                    ),
                     encoding="utf-8",
                 )
 
@@ -284,7 +300,9 @@ class TestData(unittest.TestCase):
                 else:
                     bypassFile.write_text(originalContent, encoding="utf-8")
 
-    def test_request_season_frc_json_uses_cache_for_past_season_without_network(self) -> None:
+    def test_request_season_frc_json_uses_cache_for_past_season_without_network(
+        self,
+    ) -> None:
         with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
             with patch(
                 "data.frc_json.fetch_frc_json",
@@ -305,7 +323,9 @@ class TestData(unittest.TestCase):
             eventsValue, list, "Expected past-season cached event listing to be reused"
         )
 
-    def test_request_season_frc_json_refreshes_current_or_future_season_but_falls_back_to_cache(self) -> None:
+    def test_request_season_frc_json_refreshes_current_or_future_season_but_falls_back_to_cache(
+        self,
+    ) -> None:
         with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
             with patch(
                 "data.frc_json.fetch_frc_json",
@@ -328,10 +348,14 @@ class TestData(unittest.TestCase):
         )
         eventsValue: Any = payload.get("Events")
         self.assertIsInstance(
-            eventsValue, list, "Expected current-season request to fall back to cached event listing when offline"
+            eventsValue,
+            list,
+            "Expected current-season request to fall back to cached event listing when offline",
         )
 
-    def test_request_paginated_season_frc_json_refreshes_current_or_future_season_but_falls_back_to_cache(self) -> None:
+    def test_request_paginated_season_frc_json_refreshes_current_or_future_season_but_falls_back_to_cache(
+        self,
+    ) -> None:
         originalContent = TEST_SEASON_CACHE_2026.read_text(encoding="utf-8")
         try:
             seasonCache = json.loads(originalContent)
@@ -347,7 +371,9 @@ class TestData(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+            with patch.dict(
+                os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}
+            ):
                 with patch(
                     "data.frc_json.fetch_frc_json",
                     side_effect=FRCNetworkError("network disabled"),
@@ -372,7 +398,9 @@ class TestData(unittest.TestCase):
         )
         teamsValue: Any = payload.get("teams")
         self.assertIsInstance(
-            teamsValue, list, "Expected paginated SeasonData request to fall back to cached teams list when offline"
+            teamsValue,
+            list,
+            "Expected paginated SeasonData request to fall back to cached teams list when offline",
         )
 
 

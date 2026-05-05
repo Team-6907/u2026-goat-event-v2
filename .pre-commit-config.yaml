@@ -9,6 +9,12 @@ repos:
           - --comment-style=#
   - repo: local
     hooks:
+      - id: black-format
+        name: black .
+        entry: pdm run black .
+        language: system
+        pass_filenames: false
+        require_serial: true
       - id: pdm-verify
         name: pdm run verify
         entry: pdm run verify
