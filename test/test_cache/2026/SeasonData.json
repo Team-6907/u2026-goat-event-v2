@@ -658,7 +658,8 @@
           "https://www.youtube.com/watch?v=11EJNc9VMn8",
           "https://www.youtube.com/watch?v=dtP3LZMkgqQ",
           "https://www.youtube.com/watch?v=HkI21hq7dIw",
-          "https://www.youtube.com/watch?v=pDb17D4Jchk"
+          "https://www.youtube.com/watch?v=cqLLqH7lr1E",
+          "https://www.youtube.com/watch?v=MFGaMe0zSA8"
         ],
         "website": "https://www.firstchampionship.org",
         "weekNumber": 9
@@ -4876,6 +4877,7 @@
         "weekNumber": 1
       }
     ],
+    "_cacheFetchedAtUtc": "2026-05-05T04:41:01.562999+00:00",
     "eventCount": 216
   }
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,13 +16,17 @@ from ruleset.tournament.double_elim import DoubleElimTournament
 from ruleset.tournament.simple import SimpleTournament
 
 TEST_CACHE_ROOT = Path(__file__).resolve().parent / "test_cache"
+TEST_NOW_UTC = datetime(2027, 1, 1, 0, 0, tzinfo=timezone.utc)
 
 
 class TestSimpleTournamentRealData(unittest.TestCase):
     def test_get_round_part_outcomes_match_real_2019_galileo_results(
         self,
     ) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event = Event(season=2019, eventCode="GALILEO")
             event.with_tournament_rule(SimpleTournament)
 
@@ -58,7 +63,10 @@ class TestSimpleTournamentRealData(unittest.TestCase):
     def test_get_round_part_outcomes_match_real_2022_galileo_results(
         self,
     ) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event = Event(season=2022, eventCode="GALILEO")
             event.with_tournament_rule(SimpleTournament)
 
@@ -95,7 +103,10 @@ class TestSimpleTournamentRealData(unittest.TestCase):
 
 class TestDoubleElimTournamentRealData(unittest.TestCase):
     def test_get_round_part_outcomes_match_real_2024_azva_results(self) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event = Event(season=2024, eventCode="AZVA")
             event.with_tournament_rule(DoubleElimTournament)
 
@@ -146,7 +157,10 @@ class TestDefaultTournamentRule(unittest.TestCase):
     def test_with_default_tournament_rule_uses_expected_rule_class_by_season(
         self,
     ) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             cases = {
                 2019: ("GALILEO", SimpleTournament),
                 2022: ("GALILEO", SimpleTournament),
@@ -168,7 +182,10 @@ class TestDefaultCMPQualificationRule(unittest.TestCase):
     def test_with_default_cmp_qual_rule_uses_expected_rule_class_by_season(
         self,
     ) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             cases = {
                 2019: "GALILEO",
                 2022: "GALILEO",
@@ -187,7 +204,10 @@ class TestDefaultCMPQualificationRule(unittest.TestCase):
                     )
 
     def test_cmp_qual_event_helpers_delegate_to_rule(self) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event = Event(season=2026, eventCode="MNDU2")
             event.with_default_cmp_qual_rule()
 
@@ -201,7 +221,10 @@ class TestDefaultCMPQualificationRule(unittest.TestCase):
         )
 
     def test_qualification_points_match_real_2026_mndu2_rankings(self) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event = Event(season=2026, eventCode="MNDU2")
             event.with_default_cmp_qual_rule()
 
@@ -224,7 +247,10 @@ class TestDefaultCMPQualificationRule(unittest.TestCase):
         )
 
     def test_playoff_round_points_match_real_simple_tournament_results(self) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event2019 = Event(season=2019, eventCode="GALILEO")
             event2019.with_tournament_rule(SimpleTournament)
             event2019.with_default_cmp_qual_rule()
@@ -266,7 +292,10 @@ class TestDefaultCMPQualificationRule(unittest.TestCase):
         )
 
     def test_playoff_round_points_match_real_double_elim_results(self) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             event = Event(season=2026, eventCode="MNDU2")
             event.with_default_cmp_qual_rule()
 
@@ -297,7 +326,10 @@ class TestDefaultCMPQualificationRule(unittest.TestCase):
         )
 
     def test_total_points_match_expected_real_event_breakdowns(self) -> None:
-        with patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}):
+        with (
+            patch.dict(os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}),
+            patch("data.frc_json._current_utc_time", return_value=TEST_NOW_UTC),
+        ):
             cases = {
                 (2026, "MNDU2", 6907): (22, 16, 20, 0, 5, 63),
                 (2026, "MNDU2", 2052): (21, 16, 20, 0, 28, 85),

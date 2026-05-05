@@ -1669,9 +1669,11 @@
     "MatchScores": []
   },
   "rankings": {
-    "Rankings": []
+    "Rankings": [],
+    "_cacheFetchedAtUtc": "2026-05-04T14:24:34.209500+00:00"
   },
   "teams": {
+    "_cacheFetchedAtUtc": "2026-05-04T14:24:33.259748+00:00",
     "pageCurrent": 1,
     "pageTotal": 1,
     "teamCountPage": 162,
@@ -3530,7 +3532,7 @@
         "country": "USA",
         "districtCode": "FIM",
         "homeCMP": null,
-        "nameFull": "TC Energy/Enbridge/Highline Internet/WE Energies/Upper Peninsula Power Company/Marilyn & John Rintamaki/Iron County Economic Corporation/Crystal Falls Springs Inc.&West Iron Co Mid High School",
+        "nameFull": "TC Energy/Enbridge/Highline Internet/Upper Peninsula Power Company/Marilyn & John Rintamaki/Iron County Economic Corporation/Crystal Falls Springs Inc.&West Iron Co Mid High School",
         "nameShort": "The AutoMatons",
         "robotName": "",
         "rookieYear": 2019,

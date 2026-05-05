@@ -7,6 +7,7 @@ from typing import Optional, Type, cast
 
 from data.frc_json import (
     FRCHTTPError,
+    FRCNetworkError,
     bypass_event_cache_file,
     bypassed_events_for_season,
 )
@@ -29,7 +30,9 @@ class Season:
         self._request_event_listing()
 
     def _request_team_listing(self) -> None:
-        teamsData = request_season_data(SeasonRequestType.TEAM_LISTING, self.season)
+        teamsData = request_season_data(
+            SeasonRequestType.TEAM_LISTING, self.season
+        )
 
         for rawTeamData in teamsData:
             if not is_json_object(rawTeamData):
@@ -42,49 +45,63 @@ class Season:
 
             self.teams[teamNumber] = SeasonTeam(self.season, teamNumber)
 
-    def _request_event_listing(self) -> None:
-        eventData = request_season_data(SeasonRequestType.EVENT_LISTING, self.season)
-        for rawEventData in eventData:
-            if not is_json_object(rawEventData):
-                continue
-            typedEventData = rawEventData
-
-            eventCode = typedEventData.get("code")
-            weekNumber = typedEventData.get("weekNumber")
-
-            if (
-                not isinstance(eventCode, str)
-                or not eventCode.strip()
-                or not isinstance(weekNumber, int)
-            ):
-                continue
-
-            if eventCode in bypassed_events_for_season(self.season):
-                continue
-
-            try:
-                currentSeason = cast(Season, self)
-                event = Event(self.season, eventCode)
-                event.season_obj = currentSeason
-            except FRCHTTPError as exc:
-                if "HTTP 500" not in str(exc):
-                    raise
-                bypass_event_cache_file(self.season, eventCode)
-                continue
-            except ValueError:
-                bypass_event_cache_file(self.season, eventCode)
-                continue
-
-            self.events.setdefault(weekNumber, []).append(event)
-
-            for team in event.teams.values():
-                try:
-                    seasonTeam = self.get_team_from_number(team.teamNumber)
-                except ValueError:
+    def _request_event_listing(self, retry: int = 5) -> None:
+        try:
+            eventData = request_season_data(
+                SeasonRequestType.EVENT_LISTING, self.season
+            )
+            for rawEventData in eventData:
+                if not is_json_object(rawEventData):
                     continue
-                team.seasonTeam = seasonTeam
-                seasonTeam.events.append((weekNumber, event))
-                seasonTeam.eventTeams.append((weekNumber, team))
+                typedEventData = rawEventData
+
+                eventCode = typedEventData.get("code")
+                weekNumber = typedEventData.get("weekNumber")
+
+                if (
+                    not isinstance(eventCode, str)
+                    or not eventCode.strip()
+                    or not isinstance(weekNumber, int)
+                ):
+                    continue
+
+                if eventCode in bypassed_events_for_season(self.season):
+                    continue
+
+                try:
+                    currentSeason = cast(Season, self)
+                    event = Event(self.season, eventCode)
+                    event.season_obj = currentSeason
+                except FRCHTTPError as exc:
+                    if "HTTP 500" not in str(exc):
+                        raise
+                    bypass_event_cache_file(
+                        self.season,
+                        eventCode,
+                        reason="event request returned HTTP 500",
+                    )
+                    continue
+                except ValueError as exc:
+                    bypass_event_cache_file(
+                        self.season, eventCode, reason=str(exc)
+                    )
+                    continue
+
+                self.events.setdefault(weekNumber, []).append(event)
+
+                for team in event.teams.values():
+                    try:
+                        seasonTeam = self.get_team_from_number(team.teamNumber)
+                    except ValueError:
+                        continue
+                    team.seasonTeam = seasonTeam
+                    seasonTeam.events.append((weekNumber, event))
+                    seasonTeam.eventTeams.append((weekNumber, team))
+        except FRCNetworkError as exc:
+            if retry > 0:
+                self._request_event_listing(retry=retry - 1)
+            else:
+                raise exc
 
     # Getters
 

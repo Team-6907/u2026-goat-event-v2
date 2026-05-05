@@ -82,6 +82,7 @@
         "round3": 2557
       }
     ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:51.556610+00:00",
     "count": 8
   },
   "awards": {
@@ -431,7 +432,8 @@
         "teamId": 1302600,
         "teamNumber": 3476
       }
-    ]
+    ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:24:01.063519+00:00"
   },
   "playoff_matches": {
     "Matches": [
@@ -1443,7 +1445,8 @@
         ],
         "tournamentLevel": "Playoff"
       }
-    ]
+    ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:56.458006+00:00"
   },
   "playoff_score_details": {
     "MatchScores": [
@@ -2919,7 +2922,8 @@
         "matchLevel": "Playoff",
         "matchNumber": 20
       }
-    ]
+    ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:59.872751+00:00"
   },
   "qualification_matches": {
     "Matches": [
@@ -9019,7 +9023,8 @@
         ],
         "tournamentLevel": "Qualification"
       }
-    ]
+    ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:55.316071+00:00"
   },
   "qualification_score_details": {
     "MatchScores": [
@@ -20707,7 +20712,8 @@
         "matchLevel": "Qualification",
         "matchNumber": 127
       }
-    ]
+    ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:58.233987+00:00"
   },
   "rankings": {
     "Rankings": [
@@ -21927,9 +21933,11 @@
         "ties": 0,
         "wins": 2
       }
-    ]
+    ],
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:49.587708+00:00"
   },
   "teams": {
+    "_cacheFetchedAtUtc": "2026-05-04T14:23:48.462361+00:00",
     "pageCurrent": 1,
     "pageTotal": 1,
     "teamCountPage": 76,

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 import json
 import os
@@ -15,6 +16,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from utils.data_util import is_json_object
+from utils.time_util import normalize_event_datetime_to_utc
 
 
 class FRCRequestError(Exception):
@@ -57,6 +59,9 @@ class SeasonRequestType(IntEnum):
     TEAM_LISTING = 2
 
 
+CACHE_FETCHED_AT_FIELD = "_cacheFetchedAtUtc"
+
+
 def _cache_root_path() -> Path:
     cacheRootOverride = os.getenv("GOAT_EVENT_CACHE_ROOT")
     if cacheRootOverride and cacheRootOverride.strip():
@@ -82,24 +87,192 @@ def _season_cache_file_path(season: int) -> Path:
     return cacheRoot / seasonStr / "SeasonData.json"
 
 
-def bypass_event_cache_file(season: int, eventCode: str) -> None:
+def _current_utc_time() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _should_always_refresh_season_cache(season: int) -> bool:
+    return _current_utc_time().year <= season
+
+
+def _format_utc_datetime(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    try:
+        parsedDateTime = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+    if parsedDateTime.tzinfo is None:
+        return parsedDateTime.replace(tzinfo=timezone.utc)
+    return parsedDateTime.astimezone(timezone.utc)
+
+
+def _get_cached_event_listing(season: int) -> list[dict[str, Any]]:
+    seasonCacheData = _read_cache_file(_season_cache_file_path(season))
+    eventsPayload = seasonCacheData.get("events")
+    if not is_json_object(eventsPayload):
+        return []
+
+    eventList = eventsPayload.get("Events")
+    if not isinstance(eventList, list):
+        return []
+
+    typedEventList: list[dict[str, Any]] = []
+    for rawEventData in cast(list[object], eventList):
+        if is_json_object(rawEventData):
+            typedEventList.append(rawEventData)
+    return typedEventList
+
+
+def _get_event_listing_metadata(
+    season: int, eventCode: str
+) -> dict[str, Any] | None:
+    normalizedEventCode = eventCode.strip()
+    if not normalizedEventCode:
+        return None
+
+    for eventData in _get_cached_event_listing(season):
+        if eventData.get("code") == normalizedEventCode:
+            return eventData
+    return None
+
+
+def _get_event_end_utc(season: int, eventCode: str) -> datetime | None:
+    eventMetadata = _get_event_listing_metadata(season, eventCode)
+    if eventMetadata is None:
+        return None
+
+    dateEnd = eventMetadata.get("dateEnd")
+    eventTimezone = eventMetadata.get("timezone")
+    if not isinstance(dateEnd, str) or not dateEnd.strip():
+        return None
+    if not isinstance(eventTimezone, str) or not eventTimezone.strip():
+        return None
+
+    return normalize_event_datetime_to_utc(dateEnd, eventTimezone)
+
+
+def _get_event_cache_refresh_deadline(
+    season: int, eventCode: str
+) -> datetime | None:
+    eventEndUtc = _get_event_end_utc(season, eventCode)
+    if eventEndUtc is None:
+        return None
+    return eventEndUtc + timedelta(days=1)
+
+
+def _should_refresh_event_payload(
+    cachedValue: dict[str, Any], season: int, eventCode: str
+) -> bool:
+    refreshDeadlineUtc = _get_event_cache_refresh_deadline(season, eventCode)
+    if refreshDeadlineUtc is None:
+        return False
+
+    cachedFetchedAtUtc = _parse_iso_datetime(
+        cachedValue.get(CACHE_FETCHED_AT_FIELD)
+    )
+    if cachedFetchedAtUtc is None:
+        return False
+
+    currentUtc = _current_utc_time()
+    if currentUtc < refreshDeadlineUtc:
+        return True
+
+    return cachedFetchedAtUtc < refreshDeadlineUtc
+
+
+def _normalize_bypass_entry(rawEntry: object) -> dict[str, str] | None:
+    if isinstance(rawEntry, str) and rawEntry.strip():
+        return {"eventCode": rawEntry.strip()}
+    if not is_json_object(rawEntry):
+        return None
+
+    eventCode = rawEntry.get("eventCode")
+    if not isinstance(eventCode, str) or not eventCode.strip():
+        return None
+
+    normalizedEntry: dict[str, str] = {"eventCode": eventCode.strip()}
+    for fieldName in ("bypassedAtUtc", "reason", "eventEndUtc"):
+        fieldValue = rawEntry.get(fieldName)
+        if isinstance(fieldValue, str) and fieldValue.strip():
+            normalizedEntry[fieldName] = fieldValue
+    return normalizedEntry
+
+
+def _is_service_bypass_reason(reason: str | None) -> bool:
+    if reason is None:
+        return False
+
+    normalizedReason = reason.strip().lower()
+    if not normalizedReason:
+        return False
+
+    if "http 500" in normalizedReason:
+        return True
+
+    if "not found" in normalizedReason:
+        return True
+
+    return False
+
+
+def _read_bypass_entries(season: int) -> list[dict[str, str]]:
+    bypassData = _read_cache_file(_bypass_file_path(season=season))
+    bypassList = bypassData.get("bypassEvents")
+    if not isinstance(bypassList, list):
+        return []
+
+    entries: list[dict[str, str]] = []
+    for rawEntry in cast(list[object], bypassList):
+        normalizedEntry = _normalize_bypass_entry(rawEntry)
+        if normalizedEntry is not None:
+            entries.append(normalizedEntry)
+    return entries
+
+
+def _write_bypass_entries(season: int, entries: list[dict[str, str]]) -> None:
+    _write_cache_file(
+        _bypass_file_path(season=season), {"bypassEvents": entries}
+    )
+
+
+def bypass_event_cache_file(
+    season: int, eventCode: str, reason: str | None = None
+) -> None:
     normalizedEventCode = eventCode.strip()
     if not normalizedEventCode:
         raise ValueError("eventCode cannot be empty")
 
     cachePath = _cache_file_path(season=season, eventCode=normalizedEventCode)
-    bypassPath = _bypass_file_path(season=season)
+    bypassEntries = [
+        entry
+        for entry in _read_bypass_entries(season)
+        if entry.get("eventCode") != normalizedEventCode
+    ]
 
-    bypassData = _read_cache_file(bypassPath)
-    bypassList = bypassData.get("bypassEvents")
-    if not isinstance(bypassList, list):
-        bypassList = []
-    typedBypassList = cast(list[object], bypassList)
+    bypassEntry: dict[str, str] = {
+        "eventCode": normalizedEventCode,
+        "bypassedAtUtc": _format_utc_datetime(_current_utc_time()),
+    }
 
-    if normalizedEventCode not in typedBypassList:
-        typedBypassList.append(normalizedEventCode)
-        bypassData["bypassEvents"] = typedBypassList
-        _write_cache_file(bypassPath, bypassData)
+    try:
+        eventEndUtc = _get_event_end_utc(season, normalizedEventCode)
+    except ValueError:
+        eventEndUtc = None
+    if eventEndUtc is not None:
+        bypassEntry["eventEndUtc"] = _format_utc_datetime(eventEndUtc)
+
+    if reason is not None and reason.strip():
+        bypassEntry["reason"] = reason.strip()
+
+    bypassEntries.append(bypassEntry)
+    _write_bypass_entries(season, bypassEntries)
 
     try:
         cachePath.unlink(missing_ok=True)
@@ -108,13 +281,23 @@ def bypass_event_cache_file(season: int, eventCode: str) -> None:
 
 
 def bypassed_events_for_season(season: int) -> list[str]:
-    bypassPath = _bypass_file_path(season=season)
-    bypassData = _read_cache_file(bypassPath)
-    bypassList = bypassData.get("bypassEvents")
-    if not isinstance(bypassList, list):
-        return []
-    typedBypassList = cast(list[str], bypassList)
-    return typedBypassList
+    currentUtc = _current_utc_time()
+    bypassedEventCodes: list[str] = []
+
+    for entry in _read_bypass_entries(season):
+        eventCode = entry["eventCode"]
+        reason = entry.get("reason")
+        eventEndUtc = _parse_iso_datetime(entry.get("eventEndUtc"))
+
+        if not _is_service_bypass_reason(reason):
+            continue
+
+        if eventEndUtc is not None:
+            if currentUtc > eventEndUtc + timedelta(days=1):
+                bypassedEventCodes.append(eventCode)
+            continue
+
+    return bypassedEventCodes
 
 
 def _read_cache_file(path: Path) -> dict[str, Any]:
@@ -243,10 +426,13 @@ def request_frc_json(
     cacheData = _read_cache_file(cachePath)
 
     cachedValue = cacheData.get(key)
-    if is_json_object(cachedValue):
+    if is_json_object(cachedValue) and not _should_refresh_event_payload(
+        cachedValue, season, normalizedEventCode
+    ):
         return cachedValue
 
     payload = fetch_frc_json(url=url, timeout=timeout)
+    payload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(_current_utc_time())
     cacheData[key] = payload
     _write_cache_file(cachePath, cacheData)
     return payload
@@ -257,6 +443,9 @@ def _request_paginated_json(
     url: str,
     key: str,
     payloadKey: str,
+    season: int | None = None,
+    eventCode: str | None = None,
+    forceRefresh: bool = False,
     timeout: float = 15.0,
 ) -> dict[str, Any]:
     """
@@ -273,7 +462,17 @@ def _request_paginated_json(
     cacheData = _read_cache_file(cachePath)
 
     cachedValue = cacheData.get(key)
-    if is_json_object(cachedValue):
+    shouldRefreshEventPayload = (
+        season is not None
+        and eventCode is not None
+        and is_json_object(cachedValue)
+        and _should_refresh_event_payload(cachedValue, season, eventCode)
+    )
+    if (
+        is_json_object(cachedValue)
+        and not forceRefresh
+        and not shouldRefreshEventPayload
+    ):
         cachedDataValue = cachedValue.get(payloadKey)
         cachedTotal = cachedValue.get("teamCountTotal")
         cachedPageTotal = cachedValue.get("pageTotal")
@@ -293,28 +492,45 @@ def _request_paginated_json(
     pageCurrent = 1
     pageTotal = 1
 
-    while pageCurrent <= pageTotal:
-        separator = "&" if "?" in url else "?"
-        pageUrl = f"{url}{separator}page={pageCurrent}"
-        payload = fetch_frc_json(url=pageUrl, timeout=timeout)
+    try:
+        while pageCurrent <= pageTotal:
+            separator = "&" if "?" in url else "?"
+            pageUrl = f"{url}{separator}page={pageCurrent}"
+            payload = fetch_frc_json(url=pageUrl, timeout=timeout)
 
-        pageData = payload.get(payloadKey)
-        if not isinstance(pageData, list):
-            raise ValueError(
-                f"Invalid event data format for '{payloadKey}': expected a list"
-            )
-        typedPageData = cast(list[object], pageData)
+            pageData = payload.get(payloadKey)
+            if not isinstance(pageData, list):
+                raise ValueError(
+                    f"Invalid event data format for '{payloadKey}': expected a list"
+                )
+            typedPageData = cast(list[object], pageData)
 
-        if mergedPayload is None:
-            mergedPayload = dict(payload)
+            if mergedPayload is None:
+                mergedPayload = dict(payload)
 
-        mergedData.extend(typedPageData)
+            mergedData.extend(typedPageData)
 
-        rawPageTotal = payload.get("pageTotal")
-        if isinstance(rawPageTotal, int) and rawPageTotal > 0:
-            pageTotal = rawPageTotal
+            rawPageTotal = payload.get("pageTotal")
+            if isinstance(rawPageTotal, int) and rawPageTotal > 0:
+                pageTotal = rawPageTotal
 
-        pageCurrent += 1
+            pageCurrent += 1
+    except FRCRequestError:
+        if is_json_object(cachedValue):
+            cachedDataValue = cachedValue.get(payloadKey)
+            cachedTotal = cachedValue.get("teamCountTotal")
+            cachedPageTotal = cachedValue.get("pageTotal")
+            if isinstance(cachedDataValue, list):
+                cachedData = cast(list[object], cachedDataValue)
+                if (
+                    isinstance(cachedTotal, int)
+                    and cachedTotal > 0
+                    and len(cachedData) == cachedTotal
+                ):
+                    return cachedValue
+                if not isinstance(cachedTotal, int) and cachedPageTotal == 1:
+                    return cachedValue
+        raise
 
     if mergedPayload is None:
         raise ValueError(f"Missing paginated payload for '{payloadKey}'")
@@ -331,6 +547,9 @@ def _request_paginated_json(
     if isinstance(teamCountPage, int):
         mergedPayload["teamCountPage"] = len(mergedData)
 
+    mergedPayload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(
+        _current_utc_time()
+    )
     cacheData[key] = mergedPayload
     _write_cache_file(cachePath, cacheData)
     return mergedPayload
@@ -349,7 +568,16 @@ def request_paginated_frc_json(
         raise ValueError("eventCode cannot be empty")
 
     cachePath = _cache_file_path(season=season, eventCode=normalizedEventCode)
-    return _request_paginated_json(cachePath, url, key, payloadKey, timeout)
+    return _request_paginated_json(
+        cachePath,
+        url,
+        key,
+        payloadKey,
+        season,
+        normalizedEventCode,
+        False,
+        timeout,
+    )
 
 
 def request_paginated_season_frc_json(
@@ -366,7 +594,16 @@ def request_paginated_season_frc_json(
         cache/{season}/SeasonData.json
     """
     cachePath = _season_cache_file_path(season=season)
-    return _request_paginated_json(cachePath, url, key, payloadKey, timeout)
+    return _request_paginated_json(
+        cachePath,
+        url,
+        key,
+        payloadKey,
+        None,
+        None,
+        _should_always_refresh_season_cache(season),
+        timeout,
+    )
 
 
 def request_season_frc_json(
@@ -385,10 +622,17 @@ def request_season_frc_json(
     cacheData = _read_cache_file(cachePath)
 
     cachedValue = cacheData.get(key)
-    if is_json_object(cachedValue):
+    shouldForceRefresh = _should_always_refresh_season_cache(season)
+    if is_json_object(cachedValue) and not shouldForceRefresh:
         return cachedValue
 
-    payload = fetch_frc_json(url=url, timeout=timeout)
+    try:
+        payload = fetch_frc_json(url=url, timeout=timeout)
+    except FRCRequestError:
+        if is_json_object(cachedValue):
+            return cachedValue
+        raise
+    payload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(_current_utc_time())
     cacheData[key] = payload
     _write_cache_file(cachePath, cacheData)
     return payload

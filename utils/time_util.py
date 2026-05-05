@@ -61,6 +61,7 @@ WINDOWS_TIMEZONE_DATA: dict[str, tuple[int, DSTRule | None]] = {
     ),
     "Taipei Standard Time": (480, None),
     "Turkey Standard Time": (180, None),
+    "Venezuela Standard Time": (-240, None),
 }
 
 
