@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -60,6 +61,7 @@ class SeasonRequestType(IntEnum):
 
 
 CACHE_FETCHED_AT_FIELD = "_cacheFetchedAtUtc"
+EVENT_FILE_SHA256_FIELD = "eventFileSha256"
 
 
 def _cache_root_path() -> Path:
@@ -269,7 +271,9 @@ def bypass_event_cache_file(
     try:
         cachePath.unlink(missing_ok=True)
     except OSError:
-        return
+        pass
+
+    write_event_file_hashes_to_season_cache(season)
 
 
 def bypassed_events_for_season(season: int) -> list[str]:
@@ -312,6 +316,42 @@ def _write_cache_file(path: Path, cacheData: dict[str, Any]) -> None:
         json.dumps(cacheData, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def _sha256_file(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as file:
+        while chunk := file.read(1024 * 1024):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _event_file_sha256_index(season: int) -> dict[str, str]:
+    seasonCachePath = _season_cache_file_path(season).parent
+    seasonPrefix = str(season)
+    hashes: dict[str, str] = {}
+
+    if not seasonCachePath.exists():
+        return hashes
+
+    for path in sorted(seasonCachePath.glob(f"{seasonPrefix}-*.json")):
+        if path.is_file():
+            hashes[path.name] = _sha256_file(path)
+
+    return hashes
+
+
+def write_event_file_hashes_to_season_cache(season: int) -> None:
+    seasonCachePath = _season_cache_file_path(season)
+    seasonCacheData = _read_cache_file(seasonCachePath)
+    eventFileHashes = _event_file_sha256_index(season)
+
+    if eventFileHashes:
+        seasonCacheData[EVENT_FILE_SHA256_FIELD] = eventFileHashes
+    else:
+        seasonCacheData.pop(EVENT_FILE_SHA256_FIELD, None)
+
+    _write_cache_file(seasonCachePath, seasonCacheData)
 
 
 def _build_basic_auth_header() -> str:
@@ -427,6 +467,7 @@ def request_frc_json(
     payload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(_current_utc_time())
     cacheData[key] = payload
     _write_cache_file(cachePath, cacheData)
+    write_event_file_hashes_to_season_cache(season)
     return payload
 
 
@@ -542,6 +583,8 @@ def _request_paginated_json(
     mergedPayload[CACHE_FETCHED_AT_FIELD] = _format_utc_datetime(_current_utc_time())
     cacheData[key] = mergedPayload
     _write_cache_file(cachePath, cacheData)
+    if season is not None and eventCode is not None:
+        write_event_file_hashes_to_season_cache(season)
     return mergedPayload
 
 

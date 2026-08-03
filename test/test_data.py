@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import unittest
@@ -13,6 +14,7 @@ from unittest.mock import patch
 
 from data.frc_json import (
     CACHE_FETCHED_AT_FIELD,
+    EVENT_FILE_SHA256_FIELD,
     FRCNetworkError,
     bypass_event_cache_file,
     bypassed_events_for_season,
@@ -97,6 +99,9 @@ class TestData(unittest.TestCase):
 
     def test_request_frc_json_writes_cache_fetch_time_on_refetch(self) -> None:
         originalContent = TEST_EVENT_CACHE_2024_AZVA.read_text(encoding="utf-8")
+        originalSeasonContent = TEST_SEASON_CACHE_2024.read_text(encoding="utf-8")
+        seasonCacheAfterWrite: Any = {}
+        expectedHash = ""
         try:
             with patch.dict(
                 os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}
@@ -115,8 +120,15 @@ class TestData(unittest.TestCase):
                             season=2024,
                             eventCode="AZVA",
                         )
+                        seasonCacheAfterWrite = json.loads(
+                            TEST_SEASON_CACHE_2024.read_text(encoding="utf-8")
+                        )
+                        expectedHash = hashlib.sha256(
+                            TEST_EVENT_CACHE_2024_AZVA.read_bytes()
+                        ).hexdigest()
         finally:
             TEST_EVENT_CACHE_2024_AZVA.write_text(originalContent, encoding="utf-8")
+            TEST_SEASON_CACHE_2024.write_text(originalSeasonContent, encoding="utf-8")
 
         self.assertEqual(payload.get("hello"), "world")
         self.assertEqual(
@@ -126,10 +138,26 @@ class TestData(unittest.TestCase):
         )
         self.assertEqual(mockFetch.call_count, 1, "Expected payload to be fetched once")
 
+        self.assertIsInstance(
+            seasonCacheAfterWrite,
+            dict,
+            "Expected SeasonData cache content to be a JSON object",
+        )
+        hashIndex = seasonCacheAfterWrite.get(EVENT_FILE_SHA256_FIELD)
+        self.assertIsInstance(
+            hashIndex, dict, "Expected SeasonData to store event file SHA-256 values"
+        )
+        self.assertEqual(
+            hashIndex.get("2024-AZVA.json"),
+            expectedHash,
+            "Expected SeasonData to store the SHA-256 for the AZVA event cache file",
+        )
+
     def test_request_frc_json_refreshes_event_cache_within_24h_after_event_end(
         self,
     ) -> None:
         originalContent = TEST_EVENT_CACHE_2024_AZVA.read_text(encoding="utf-8")
+        originalSeasonContent = TEST_SEASON_CACHE_2024.read_text(encoding="utf-8")
         try:
             with patch.dict(
                 os.environ, {"GOAT_EVENT_CACHE_ROOT": str(TEST_CACHE_ROOT)}
@@ -156,6 +184,7 @@ class TestData(unittest.TestCase):
                         )
         finally:
             TEST_EVENT_CACHE_2024_AZVA.write_text(originalContent, encoding="utf-8")
+            TEST_SEASON_CACHE_2024.write_text(originalSeasonContent, encoding="utf-8")
 
         self.assertEqual(
             payload.get("teamCountTotal"),
@@ -183,6 +212,7 @@ class TestData(unittest.TestCase):
                 bypassFile.read_text(encoding="utf-8") if bypassFile.exists() else None
             )
             originalEventCacheContent = eventCacheFile.read_text(encoding="utf-8")
+            originalSeasonContent = TEST_SEASON_CACHE_2024.read_text(encoding="utf-8")
 
             try:
                 bypassFile.unlink(missing_ok=True)
@@ -192,6 +222,15 @@ class TestData(unittest.TestCase):
                     bypass_event_cache_file(
                         2024, "AZVA", reason="incomplete event data"
                     )
+
+                seasonPayload: Any = json.loads(
+                    TEST_SEASON_CACHE_2024.read_text(encoding="utf-8")
+                )
+                self.assertNotIn(
+                    "2024-AZVA.json",
+                    seasonPayload.get(EVENT_FILE_SHA256_FIELD, {}),
+                    "Expected bypassing an event cache to remove its SHA-256 entry",
+                )
 
                 bypassPayload = json.loads(bypassFile.read_text(encoding="utf-8"))
                 bypassEntries: Any = bypassPayload.get("bypassEvents")
@@ -240,6 +279,9 @@ class TestData(unittest.TestCase):
                     )
             finally:
                 eventCacheFile.write_text(originalEventCacheContent, encoding="utf-8")
+                TEST_SEASON_CACHE_2024.write_text(
+                    originalSeasonContent, encoding="utf-8"
+                )
                 if originalContent is None:
                     bypassFile.unlink(missing_ok=True)
                 else:
